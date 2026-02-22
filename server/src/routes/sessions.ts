@@ -129,6 +129,7 @@ const sessionsRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = request.params as { id: string };
     const session = await prisma.journalSession.findFirst({ where: { id, userId: request.user.userId } });
     if (!session) return reply.notFound('Session not found');
+    if (session.status !== SessionStatus.live) return reply.badRequest('Session is not live');
 
     const endedAt = new Date();
     const durationSeconds = Math.max(0, Math.round((endedAt.getTime() - session.startedAt.getTime()) / 1000));

@@ -22,7 +22,8 @@ export const useRealtimeConversation = (sessionId: string) => {
       setStatus('connecting');
       setError(null);
       const tokenRes = await api.post(`/sessions/${sessionId}/realtime-token`);
-      const token = tokenRes.data.token;
+      const token = tokenRes.data.token as string;
+      const realtimeModel = tokenRes.data.session?.model ?? 'gpt-4o-realtime-preview';
 
       const pc = new RTCPeerConnection();
       pcRef.current = pc;
@@ -56,7 +57,7 @@ export const useRealtimeConversation = (sessionId: string) => {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      const sdpResponse = await fetch(`https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview`, {
+      const sdpResponse = await fetch(`https://api.openai.com/v1/realtime?model=${encodeURIComponent(realtimeModel)}`, {
         method: 'POST',
         body: offer.sdp,
         headers: {
