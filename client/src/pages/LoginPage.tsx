@@ -1,0 +1,22 @@
+import { FormEvent, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { api } from '../lib/api';
+
+export const LoginPage = () => {
+  const nav = useNavigate();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.post('/auth/login', { email, password });
+      nav('/sessions');
+    } catch {
+      setError('Login failed');
+    }
+  };
+
+  return <form onSubmit={submit} className="max-w-md mx-auto mt-20 space-y-3"><h1 className="text-2xl">Login</h1>{error && <p>{error}</p>}<input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email"/><input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password"/><button type="submit">Login</button><p><Link to="/signup">Create account</Link></p></form>;
+};

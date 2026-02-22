@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String            @id @default(cuid())
+  email            String            @unique
+  passwordHash     String
+  createdAt        DateTime          @default(now())
+  sessions         JournalSession[]
+  memoryCandidates MemoryCandidate[]
+}
+
+model JournalSession {
+  id              String         @id @default(cuid())
+  userId          String
+  startedAt       DateTime
+  endedAt         DateTime?
+  status          SessionStatus
+  title           String?
+  durationSeconds Int?
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  utterances      Utterance[]
+  artifact        Artifact?
+  memoryCandidates MemoryCandidate[]
+  aiRequestLogs   AIRequestLog[]
+
+  @@index([userId, startedAt(sort: Desc)])
+}
+
+model Utterance {
+  id        String    @id @default(cuid())
+  sessionId String
+  speaker   Speaker
+  startMs   Int?
+  endMs     Int?
+  text      String
+  createdAt DateTime  @default(now())
+  session   JournalSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+}
+
+model Artifact {
+  sessionId              String   @id
+  curatedEntryMd         String
+  summaryBulletsJson     Json
+  themesJson             Json
+  emotionalTimelineJson  Json
+  keyMomentsJson         Json
+  followupQuestionsJson  Json
+  createdAt              DateTime @default(now())
+  session                JournalSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model MemoryCandidate {
+  id         String          @id @default(cuid())
+  userId     String
+  sessionId  String
+  category   MemoryCategory
+  text       String
+  confidence Float
+  approvedAt DateTime?
+  rejectedAt DateTime?
+  createdAt  DateTime        @default(now())
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session    JournalSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([userId, approvedAt])
+}
+
+model AIRequestLog {
+  id        String          @id @default(cuid())
+  sessionId String?
+  kind      AIRequestKind
+  model     String
+  latencyMs Int?
+  status    AIRequestStatus
+  error     String?
+  createdAt DateTime        @default(now())
+  session   JournalSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+}
+
+enum SessionStatus {
+  live
+  processing
+  ready
+  failed
+}
+
+enum Speaker {
+  user
+  ai
+}
+
+enum MemoryCategory {
+  preference
+  goal
+  relationship
+  project
+  value
+  other
+}
+
+enum AIRequestKind {
+  realtime
+  curate
+}
+
+enum AIRequestStatus {
+  ok
+  error
+}

@@ -1,0 +1,6 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+body { @apply bg-slate-950 text-slate-100; }
+button { @apply px-4 py-2 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50; }
+input { @apply w-full rounded bg-slate-800 p-2; }
