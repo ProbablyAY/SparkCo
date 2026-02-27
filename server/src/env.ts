@@ -7,6 +7,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(4000),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z.string().min(1),
+  REDIS_URL: z.string().url(),
   JWT_SECRET: z.string().min(8),
   CORS_ORIGIN: z.string().url(),
   OPENAI_API_KEY: z.string().min(1),
