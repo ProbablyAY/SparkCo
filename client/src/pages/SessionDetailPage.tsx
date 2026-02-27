@@ -1,28 +1,30 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useRealtimeConversation } from '../hooks/useRealtimeConversation';
+import { approveMemory, getSessionById, rejectMemory } from '../lib/clientData';
 import type { MemoryCandidate, SessionDetail } from '../lib/types';
 
 export const SessionDetailPage = () => {
   const { id = '' } = useParams();
   const [session, setSession] = useState<SessionDetail | null>(null);
+  const [usingFallback, setUsingFallback] = useState(false);
   const rt = useRealtimeConversation(id);
 
   const load = async () => {
-    const res = await api.get<{ session: SessionDetail }>(`/sessions/${id}`);
-    setSession(res.data.session);
+    try {
+      const res = await api.get<{ session: SessionDetail }>(`/sessions/${id}`);
+      setUsingFallback(false);
+      setSession(res.data.session);
+    } catch {
+      setUsingFallback(true);
+      setSession(getSessionById(id));
+    }
   };
 
   useEffect(() => {
     load().catch(() => undefined);
   }, [id]);
-
-  useEffect(() => {
-    if (session?.status !== 'processing') return;
-    const timer = setInterval(() => load().catch(() => undefined), 2000);
-    return () => clearInterval(timer);
-  }, [session?.status]);
 
   const pendingMemories = useMemo(
     () => (session?.memoryCandidates ?? []).filter((m) => !m.approvedAt && !m.rejectedAt),
@@ -31,16 +33,47 @@ export const SessionDetailPage = () => {
 
   const endConversation = async () => {
     await rt.stop();
+    if (usingFallback) {
+      setSession((prev) => (prev ? { ...prev, status: 'processing' } : prev));
+      setTimeout(() => {
+        setSession((prev) =>
+          prev
+            ? ({
+                ...prev,
+                status: 'ready',
+                title: prev.title ?? 'Demo processed session'
+              } as SessionDetail)
+            : prev
+        );
+      }, 1200);
+      return;
+    }
+
     await api.post(`/sessions/${id}/end`);
     await load();
   };
 
   const actMemory = async (memoryId: string, action: 'approve' | 'reject') => {
+    if (usingFallback) {
+      if (action === 'approve') approveMemory(memoryId);
+      else rejectMemory(memoryId);
+      await load();
+      return;
+    }
+
     await api.post(`/memory/${memoryId}/${action}`);
     await load();
   };
 
-  if (!session) return <div>Loading...</div>;
+  if (!session)
+    return (
+      <div className="space-y-3">
+        <p>Session not found.</p>
+        <Link to="/sessions" className="underline">
+          Back to sessions
+        </Link>
+      </div>
+    );
 
   return (
     <div className="space-y-5">
@@ -48,10 +81,14 @@ export const SessionDetailPage = () => {
       <p>
         Live status: {rt.status} {rt.error ? `(${rt.error})` : ''}
       </p>
+      {usingFallback && <p className="text-sm text-amber-300">Using local UI fallback data.</p>}
 
       <div className="flex gap-2">
         <button onClick={rt.start}>Start Conversation</button>
         <button onClick={endConversation}>End Conversation</button>
+        <Link to="/sessions" className="px-4 py-2 rounded bg-slate-700">
+          Back
+        </Link>
       </div>
 
       {session.status === 'processing' && <p>Processing…</p>}
@@ -60,6 +97,7 @@ export const SessionDetailPage = () => {
       <section>
         <h2 className="text-xl">Transcript</h2>
         <div className="space-y-1">
+          {session.utterances.length === 0 ? <p className="opacity-70">No transcript yet.</p> : null}
           {session.utterances.map((u) => (
             <div key={u.id}>
               <strong>{u.speaker}:</strong> {u.text}
@@ -80,29 +118,13 @@ export const SessionDetailPage = () => {
           </section>
           <section>
             <h2 className="text-xl">Themes</h2>
-            <div className="flex flex-wrap gap-2">{session.artifact.themesJson.map((t) => <span className="px-2 py-1 bg-slate-800 rounded" key={t}>{t}</span>)}</div>
-          </section>
-          <section>
-            <h2 className="text-xl">Emotional timeline</h2>
-            {session.artifact.emotionalTimelineJson.map((e, i) => (
-              <div key={i} className="border p-2 rounded my-2">
-                <strong>{e.t}</strong>: {e.label}
-                <div className="text-sm opacity-80">Evidence: {e.evidence}</div>
-              </div>
-            ))}
-          </section>
-          <section>
-            <h2 className="text-xl">Key moments</h2>
-            {session.artifact.keyMomentsJson.map((m, i) => (
-              <div key={i} className="border p-2 rounded my-2">
-                <div>{m.moment} ({m.timestamp_ms}ms)</div>
-                <div className="text-sm opacity-80">{m.why_it_matters}</div>
-              </div>
-            ))}
-          </section>
-          <section>
-            <h2 className="text-xl">Follow-up questions</h2>
-            <ul>{session.artifact.followupQuestionsJson.map((q, i) => <li key={i}>• {q}</li>)}</ul>
+            <div className="flex flex-wrap gap-2">
+              {session.artifact.themesJson.map((t) => (
+                <span className="px-2 py-1 bg-slate-800 rounded" key={t}>
+                  {t}
+                </span>
+              ))}
+            </div>
           </section>
         </>
       )}

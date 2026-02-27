@@ -1,12 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
+import { getApprovedMemory } from '../lib/clientData';
 import type { MemoryCandidate } from '../lib/types';
 
 export const MemoryPage = () => {
   const [memory, setMemory] = useState<MemoryCandidate[]>([]);
+  const [usingFallback, setUsingFallback] = useState(false);
 
   useEffect(() => {
-    api.get<{ memory: MemoryCandidate[] }>('/memory').then((r) => setMemory(r.data.memory));
+    api
+      .get<{ memory: MemoryCandidate[] }>('/memory')
+      .then((r) => {
+        setUsingFallback(false);
+        setMemory(r.data.memory);
+      })
+      .catch(() => {
+        setUsingFallback(true);
+        setMemory(getApprovedMemory());
+      });
   }, []);
 
   const grouped = useMemo(
@@ -20,6 +31,7 @@ export const MemoryPage = () => {
 
   return (
     <div>
+      {usingFallback && <p className="text-sm text-amber-300 mb-2">Using local UI fallback data.</p>}
       {Object.entries(grouped).map(([cat, items]) => (
         <section key={cat}>
           <h2 className="text-xl capitalize">{cat}</h2>
@@ -30,6 +42,7 @@ export const MemoryPage = () => {
           ))}
         </section>
       ))}
+      {memory.length === 0 && <p className="opacity-70">No approved memory yet.</p>}
     </div>
   );
 };
